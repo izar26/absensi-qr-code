@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manajemen Absensi Harian</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .sidebar { height: 100%; width: 250px; position: fixed; z-index: 10; top: 0; left: 0; background-color: #1a202c; overflow-x: hidden; transition: 0.5s; padding-top: 60px; }
+        .sidebar a { padding: 10px 15px; text-decoration: none; font-size: 18px; color: #cbd5e0; display: block; transition: 0.3s; }
+        .sidebar a:hover { color: #ffffff; background-color: #4a5568; }
+        .sidebar .closebtn { position: absolute; top: 0; right: 25px; font-size: 36px; margin-left: 50px; display: none; }
+        .main-content { transition: margin-left .5s; padding: 20px; }
+        .openbtn { font-size: 20px; cursor: pointer; background-color: #1a202c; color: white; padding: 10px 15px; border: none; }
+        .action-btn { padding: 4px 8px; font-size: 12px; margin-right: 4px; border-radius: 4px; color: white; border: none; cursor: pointer; }
+        .modal { z-index: 20; }
+        @media screen and (max-width: 768px) {
+            .sidebar { width: 0; }
+            .sidebar .closebtn { display: block; }
+            .main-content { margin-left: 0 !important; }
+        }
+        @media print {
+            body * { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="mySidebar" class="sidebar no-print">
+        <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+        <a href="/dashboard.html"><i class="fas fa-tachometer-alt fa-fw mr-3"></i>Dashboard</a>
+        <a href="/scanner.html"><i class="fas fa-qrcode fa-fw mr-3"></i>Scanner</a>
+        <a href="/admin.html"><i class="fas fa-users-cog fa-fw mr-3"></i>Kelola Siswa</a>
+        <a href="/sesi.html"><i class="fas fa-clock fa-fw mr-3"></i>Kelola Sesi</a>
+        <a href="/laporan.html" class="bg-gray-700 text-white"><i class="fas fa-chart-bar fa-fw mr-3"></i>Laporan Harian</a>
+        <a href="/grafik.html"><i class="fas fa-trophy fa-fw mr-3"></i>Grafik Peringkat</a>
+        <a href="/broadcast.html"><i class="fas fa-bullhorn fa-fw mr-3"></i>Broadcast WA</a>
+        <a href="/rekap.html"><i class="fas fa-file-invoice fa-fw mr-3"></i>Rekap Bulanan</a>
+        <a href="/status.html"><i class="fas fa-signal fa-fw mr-3"></i>Status Sistem</a>
+    </div>
+
+    <div id="main" class="main-content">
+        <button class="openbtn rounded-md mb-4 no-print" onclick="openNav()">&#9776; Menu</button>
+        
+        <div class="container mx-auto" id="print-area">
+            <div class="flex flex-wrap justify-between items-center mb-6">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Manajemen Absensi Harian</h1>
+                    <p id="report-date-header" class="text-gray-600">Laporan untuk tanggal: </p>
+                </div>
+                <div class="no-print mt-4 md:mt-0">
+                    <input type="date" id="date-picker" class="border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none">
+                    <button onclick="window.print()" class="ml-2 bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700">
+                        <i class="fas fa-print mr-2"></i>Cetak
+                    </button>
+                    <button onclick="openWhatsAppModal()" class="ml-2 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700">
+                        <i class="fab fa-whatsapp mr-2"></i>Kirim WA
+                    </button>
+                </div>
+            </div>
+
+            <div id="report-content" class="bg-white p-6 rounded-lg shadow-md">
+                 <div class="relative w-full md:w-1/3 mb-4">
+                    <input type="text" id="search-input" placeholder="Cari nama siswa..." class="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-search text-gray-400"></i>
+                    </div>
+                </div>
+
+                 <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Siswa</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu Masuk</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-print">Aksi Manual</th>
+                            </tr>
+                        </thead>
+                        <tbody id="report-table" class="bg-white divide-y divide-gray-200"></tbody>
+                    </table>
+                     <div id="no-results" class="text-center py-8 text-gray-500 hidden">Tidak ada siswa yang cocok dengan pencarian.</div>
+                </div>
+                <div id="pagination-controls" class="flex justify-between items-center mt-6">
+                    <span id="page-info" class="text-sm text-gray-700"></span>
+                    <div class="flex items-center space-x-2">
+                        <button id="prev-page" class="px-3 py-1 border rounded-md bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <span id="page-numbers" class="flex items-center space-x-1"></span>
+                        <button id="next-page" class="px-3 py-1 border rounded-md bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+             <div id="loading-indicator" class="text-center py-8">Memuat data...</div>
+        </div>
+    </div>
+
+    <div id="whatsapp-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center modal hidden no-print">
+        <div class="relative mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Kirim Laporan via WhatsApp</h3>
+                <div class="mt-2 px-7 py-3">
+                    <p class="text-sm text-gray-500 mb-4">Masukkan nomor WhatsApp tujuan. Pastikan diawali dengan 62 (contoh: 6281234567890).</p>
+                    <input type="tel" id="whatsapp-number" class="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" placeholder="6281234567890">
+                </div>
+                <div id="modal-status" class="mt-2 text-sm"></div>
+                <div class="items-center px-4 py-3">
+                    <button id="send-wa-button" onclick="sendReportViaWhatsApp()" class="px-4 py-2 bg-green-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-300">
+                        Kirim Sekarang
+                    </button>
+                    <button onclick="closeWhatsAppModal()" class="mt-2 px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                        Batal
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="whatsapp-report-area" class="w-[500px] p-6 bg-white absolute -left-full">
+        <div class="border-b-2 pb-4 mb-4 border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-800">Laporan Absensi Harian</h2>
+            <p id="wa-report-date" class="text-lg text-gray-600"></p>
+        </div>
+        <div id="wa-summary-section" class="grid grid-cols-3 gap-4 mb-6 text-center"></div>
+        <div id="wa-details-section" class="space-y-4"></div>
+        <div class="mt-6 pt-4 border-t text-center text-xs text-gray-400">
+            <p>Digenerate oleh Sistem Absensi QR - <span id="footer-date"></span></p>
+        </div>
+    </div>
+
+
+    <script>
+        // --- Sidebar Logic ---
+        function openNav() {
+            if (window.innerWidth > 768) { document.getElementById("main").style.marginLeft = "250px"; }
+            document.getElementById("mySidebar").style.width = "250px";
+        }
+        function closeNav() {
+            document.getElementById("mySidebar").style.width = "0";
+            if (window.innerWidth > 768) { document.getElementById("main").style.marginLeft = "0"; }
+        }
+        if (window.innerWidth > 768) { openNav(); }
+
+        // --- Aplikasi Logic ---
+        const datePicker = document.getElementById('date-picker');
+        const reportTable = document.getElementById('report-table');
+        const reportDateHeader = document.getElementById('report-date-header');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const searchInput = document.getElementById('search-input');
+
+        let allStudentsData = [];
+        let currentPage = 1;
+        const rowsPerPage = 15; // Anda bisa ubah jumlah item per halaman di sini
+
+        function formatDate(dateString) {
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            return new Date(dateString + 'T00:00:00').toLocaleDateString('id-ID', options);
+        }
+
+        async function fetchStatus(date) {
+            loadingIndicator.style.display = 'block';
+            reportTable.innerHTML = '';
+            const formattedDate = formatDate(date);
+            reportDateHeader.textContent = `Laporan untuk tanggal: ${formattedDate}`;
+            document.getElementById('wa-report-date').textContent = formattedDate;
+            document.getElementById('footer-date').textContent = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric'});
+
+            try {
+                const response = await fetch(`/api/attendance/status?date=${date}`);
+                if (!response.ok) throw new Error('Gagal mengambil data dari server.');
+                allStudentsData = await response.json();
+                
+                // Reset ke halaman 1 setiap kali fetch data baru
+                currentPage = 1;
+                renderPage(); // Panggil fungsi render utama
+                populateWhatsAppReport(allStudentsData); // Tetap isi laporan WA dengan data lengkap
+
+            } catch (error) {
+                reportTable.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-red-500">${error.message}</td></tr>`;
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        function renderPage() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const filteredData = allStudentsData.filter(student =>
+                student.name.toLowerCase().includes(searchTerm)
+            );
+            
+            reportTable.innerHTML = '';
+            const noResultsDiv = document.getElementById('no-results');
+            
+            if (filteredData.length === 0) {
+                reportTable.style.display = 'none';
+                noResultsDiv.style.display = 'block';
+            } else {
+                reportTable.style.display = '';
+                noResultsDiv.style.display = 'none';
+            }
+
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            const paginatedData = filteredData.slice(start, end);
+
+            paginatedData.forEach(student => {
+                const statusColors = { 'Tepat Waktu': 'bg-green-100 text-green-800', 'Terlambat': 'bg-yellow-100 text-yellow-800', 'Hadir (Manual)': 'bg-blue-100 text-blue-800', 'Sakit': 'bg-purple-100 text-purple-800', 'Izin': 'bg-indigo-100 text-indigo-800', 'Alfa': 'bg-red-100 text-red-800' };
+                const statusText = student.status ? `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColors[student.status] || 'bg-gray-100 text-gray-800'}">${student.status}</span>` : '<span class="text-gray-400">Belum Ada Status</span>';
+                const entryTime = student.scan_time ? student.scan_time : '-';
+                const actions = student.status 
+                    ? `<button onclick="manualSetStatus('${student.id}', null)" class="action-btn bg-gray-500 hover:bg-gray-600">Batalkan</button>`
+                    : `<button onclick="manualSetStatus('${student.id}', 'Hadir (Manual)')" class="action-btn bg-blue-500 hover:bg-blue-600">Hadir</button><button onclick="manualSetStatus('${student.id}', 'Sakit')" class="action-btn bg-purple-500 hover:bg-purple-600">Sakit</button><button onclick="manualSetStatus('${student.id}', 'Izin')" class="action-btn bg-indigo-500 hover:bg-indigo-600">Izin</button><button onclick="manualSetStatus('${student.id}', 'Alfa')" class="action-btn bg-red-500 hover:bg-red-600">Alfa</button>`;
+                
+                reportTable.innerHTML += `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap">${student.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap font-mono text-gray-700">${entryTime}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${statusText}</td>
+                        <td class="px-6 py-4 whitespace-nowrap no-print">${actions}</td>
+                    </tr>
+                `;
+            });
+            
+            renderPaginationControls(filteredData.length, totalPages);
+        }
+        
+        function renderPaginationControls(totalItems, totalPages) {
+            const pageInfo = document.getElementById('page-info');
+            const pageNumbers = document.getElementById('page-numbers');
+            const prevBtn = document.getElementById('prev-page');
+            const nextBtn = document.getElementById('next-page');
+            const paginationControls = document.getElementById('pagination-controls');
+
+            if (totalPages <= 1) {
+                paginationControls.style.display = 'none';
+                return;
+            }
+            
+            paginationControls.style.display = 'flex';
+
+            const startItem = (currentPage - 1) * rowsPerPage + 1;
+            const endItem = Math.min(currentPage * rowsPerPage, totalItems);
+            pageInfo.textContent = `Menampilkan ${startItem}-${endItem} dari ${totalItems}`;
+
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage === totalPages;
+            
+            pageNumbers.innerHTML = `<span class="px-3 py-1 border rounded-md bg-indigo-500 text-white">${currentPage}</span>`;
+        }
+
+        function populateWhatsAppReport(students) {
+            const summarySection = document.getElementById('wa-summary-section');
+            const detailsSection = document.getElementById('wa-details-section');
+            summarySection.innerHTML = '';
+            detailsSection.innerHTML = '';
+
+            if (!Array.isArray(students) || students.length === 0) return;
+
+            // ... (sisa fungsi populateWhatsAppReport sama seperti sebelumnya) ...
+            let totalStudents = students.length;
+            const stats = students.reduce((acc, student) => {
+                const status = student.status || 'Belum Absen';
+                acc[status] = (acc[status] || 0) + 1;
+                return acc;
+            }, {});
+
+            const hadir = (stats['Tepat Waktu'] || 0) + (stats['Hadir (Manual)'] || 0);
+            const terlambat = stats['Terlambat'] || 0;
+            const sakit = stats['Sakit'] || 0;
+            const izin = stats['Izin'] || 0;
+            const alfa = totalStudents - hadir - terlambat - sakit - izin;
+            
+            const summaryData = { 'Hadir': hadir, 'Terlambat': terlambat, 'Sakit': sakit, 'Izin': izin, 'Alfa': alfa };
+            const summaryOrder = { 'Hadir': 'bg-green-100 text-green-800', 'Terlambat': 'bg-yellow-100 text-yellow-800', 'Sakit': 'bg-purple-100 text-purple-800', 'Izin': 'bg-indigo-100 text-indigo-800', 'Alfa': 'bg-red-100 text-red-800'};
+            for (const [status, color] of Object.entries(summaryOrder)) {
+                const count = summaryData[status] || 0;
+                summarySection.innerHTML += `<div class="p-2 rounded-lg ${color}"><div class="text-2xl font-bold">${count}</div><div class="text-sm font-medium">${status}</div></div>`;
+            }
+
+            const groupedStudents = students.reduce((acc, student) => {
+                const status = student.status || 'Alfa';
+                if (!acc[status]) acc[status] = [];
+                acc[status].push(student);
+                return acc;
+            }, {});
+
+             if (!groupedStudents['Alfa']) groupedStudents['Alfa'] = [];
+             students.forEach(s => { if(!s.status) groupedStudents['Alfa'].push(s); });
+            
+            const detailsOrder = ['Terlambat', 'Sakit', 'Izin', 'Alfa'];
+            detailsOrder.forEach(status => {
+                if (groupedStudents[status] && groupedStudents[status].length > 0) {
+                    const studentList = groupedStudents[status].map(s => `<li class="flex justify-between"><span>${s.name}</span><span class="font-mono text-sm">${s.scan_time || ''}</span></li>`).join('');
+                    detailsSection.innerHTML += `<div class="bg-gray-50 p-3 rounded-lg"><h3 class="font-bold text-gray-700 mb-2 border-b pb-1">${status} (${groupedStudents[status].length} siswa)</h3><ul class="space-y-1 text-gray-600 text-sm">${studentList}</ul></div>`;
+                }
+            });
+        }
+
+        async function manualSetStatus(studentId, status) {
+            const date = datePicker.value;
+            if (status === null) {
+                if (!confirm('Anda yakin ingin membatalkan status absensi siswa ini?')) return;
+                try {
+                    const response = await fetch('/api/attendance', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentId, date }) });
+                    if (!response.ok) { const result = await response.json(); throw new Error(result.message); }
+                    fetchStatus(date);
+                } catch(error) { alert(`Gagal membatalkan: ${error.message}`); }
+                return;
+            }
+            try {
+                const response = await fetch('/api/attendance/manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studentId, status, date }) });
+                if (!response.ok) { const result = await response.json(); throw new Error(result.message); }
+                fetchStatus(date);
+            } catch(error) { alert(`Gagal mengatur status: ${error.message}`); }
+        }
+
+        // --- WhatsApp Modal Logic ---
+        const whatsappModal = document.getElementById('whatsapp-modal');
+        const modalStatus = document.getElementById('modal-status');
+        const sendWaButton = document.getElementById('send-wa-button');
+
+        function openWhatsAppModal() { whatsappModal.classList.remove('hidden'); }
+        function closeWhatsAppModal() {
+            whatsappModal.classList.add('hidden');
+            modalStatus.innerHTML = '';
+            sendWaButton.disabled = false;
+            sendWaButton.textContent = 'Kirim Sekarang';
+        }
+        
+        async function sendReportViaWhatsApp() {
+            const phoneNumber = document.getElementById('whatsapp-number').value;
+            if (!phoneNumber || !phoneNumber.startsWith('62')) {
+                modalStatus.innerHTML = `<p class="text-red-500">Format nomor salah. Harap awali dengan 62.</p>`;
+                return;
+            }
+
+            modalStatus.innerHTML = `<p class="text-blue-500">Mempersiapkan gambar laporan...</p>`;
+            sendWaButton.disabled = true;
+            sendWaButton.textContent = 'Mengirim...';
+
+            try {
+                const reportElement = document.getElementById('whatsapp-report-area');
+                const canvas = await html2canvas(reportElement, { scale: 2 });
+                const imageData = canvas.toDataURL('image/jpeg', 0.9);
+                modalStatus.innerHTML = `<p class="text-blue-500">Mengirim ke server...</p>`;
+                const response = await fetch('/api/report/whatsapp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber, imageData, reportDate: formatDate(datePicker.value) })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+                modalStatus.innerHTML = `<p class="text-green-500">${result.message}</p>`;
+                setTimeout(closeWhatsAppModal, 2000);
+            } catch (error) {
+                modalStatus.innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
+                sendWaButton.disabled = false;
+                sendWaButton.textContent = 'Kirim Sekarang';
+            }
+        }
+
+        // --- Event Listeners ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().slice(0, 10);
+            datePicker.value = today;
+            fetchStatus(today);
+            datePicker.addEventListener('change', () => fetchStatus(datePicker.value));
+            
+            searchInput.addEventListener('input', () => {
+                currentPage = 1; // Reset ke halaman pertama setiap kali mencari
+                renderPage();
+            });
+
+            document.getElementById('prev-page').addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderPage();
+                }
+            });
+
+            document.getElementById('next-page').addEventListener('click', () => {
+                const searchTerm = searchInput.value.toLowerCase();
+                const filteredData = allStudentsData.filter(student => student.name.toLowerCase().includes(searchTerm));
+                const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderPage();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

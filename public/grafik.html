@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Papan Peringkat Absensi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; transition: margin-left .5s; }
+        .sidebar { height: 100%; width: 250px; position: fixed; z-index: 20; top: 0; left: 0; background-color: #1a202c; overflow-x: hidden; transition: 0.5s; padding-top: 60px; }
+        .sidebar a { padding: 10px 15px; text-decoration: none; font-size: 18px; color: #cbd5e0; display: block; transition: 0.3s; }
+        .sidebar a:hover { color: #ffffff; background-color: #4a5568; }
+        .sidebar .closebtn { position: absolute; top: 0; right: 25px; font-size: 36px; margin-left: 50px; display: none; }
+        .main-content { transition: margin-left .5s; padding: 20px; }
+        .openbtn { font-size: 20px; cursor: pointer; background-color: #1a202c; color: white; padding: 10px 15px; border: none; }
+        .filter-btn { transition: all 0.2s; }
+        .filter-btn.active { background-color: #4f46e5; color: white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        .modal { z-index: 30; }
+        .leaderboard-item { cursor: pointer; transition: all 0.2s ease-in-out; }
+        .leaderboard-item:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .badge-tooltip .tooltip-text { visibility: hidden; opacity: 0; transition: opacity 0.3s; }
+        .badge-tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
+        @media screen and (max-width: 768px) {
+            .sidebar { width: 0; }
+            .sidebar .closebtn { display: block; }
+            .main-content { margin-left: 0 !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="mySidebar" class="sidebar">
+        <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+        <a href="/dashboard.html"><i class="fas fa-tachometer-alt fa-fw mr-3"></i>Dashboard</a>
+        <a href="/scanner.html"><i class="fas fa-qrcode fa-fw mr-3"></i>Scanner</a>
+        <a href="/admin.html"><i class="fas fa-users-cog fa-fw mr-3"></i>Kelola Siswa</a>
+        <a href="/sesi.html"><i class="fas fa-clock fa-fw mr-3"></i>Kelola Sesi</a>
+        <a href="/laporan.html"><i class="fas fa-chart-bar fa-fw mr-3"></i>Laporan Harian</a>
+        <a href="/grafik.html" class="bg-gray-700 text-white"><i class="fas fa-trophy fa-fw mr-3"></i>Grafik Peringkat</a>
+        <a href="/broadcast.html"><i class="fas fa-bullhorn fa-fw mr-3"></i>Broadcast WA</a>
+        <a href="/rekap.html"><i class="fas fa-file-invoice fa-fw mr-3"></i>Rekap Bulanan</a>
+        <a href="/status.html"><i class="fas fa-signal fa-fw mr-3"></i>Status Sistem</a>
+    </div>
+
+    <div id="main" class="main-content">
+        <button class="openbtn rounded-md mb-4" onclick="openNav()">&#9776; Menu</button>
+        
+        <div class="container mx-auto">
+            <h1 class="text-3xl font-bold mb-2 text-gray-800">Papan Peringkat Interaktif</h1>
+            <p class="text-gray-600 mb-6">Lihat peringkat siswa berdasarkan periode waktu dan klik nama untuk melihat statistik detail.</p>
+
+            <div id="filter-container" class="mb-6 flex space-x-2 bg-gray-200 p-1 rounded-lg">
+                <button onclick="changePeriod('all', this)" class="filter-btn active w-full py-2 px-4 rounded-md font-semibold">Keseluruhan</button>
+                <button onclick="changePeriod('monthly', this)" class="filter-btn w-full py-2 px-4 rounded-md font-semibold">Bulan Ini</button>
+                <button onclick="changePeriod('weekly', this)" class="filter-btn w-full py-2 px-4 rounded-md font-semibold">Minggu Ini</button>
+            </div>
+
+            <div id="leaderboard-content" class="min-h-[300px]">
+                 <!-- Konten Papan Peringkat akan di-generate di sini -->
+            </div>
+             <div id="loading-indicator" class="text-center py-8 hidden">Memuat data...</div>
+        </div>
+    </div>
+
+    <!-- Modal Statistik Detail -->
+    <div id="stats-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center modal hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6 relative transform transition-all" id="modal-card">
+            <button onclick="closeStatsModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-800 text-2xl">&times;</button>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
+    <script>
+        // --- Sidebar Logic ---
+        function openNav() {
+            if (window.innerWidth > 768) { document.getElementById("main").style.marginLeft = "250px"; }
+            document.getElementById("mySidebar").style.width = "250px";
+        }
+        function closeNav() {
+            document.getElementById("mySidebar").style.width = "0";
+            if (window.innerWidth > 768) { document.getElementById("main").style.marginLeft = "0"; }
+        }
+        if (window.innerWidth > 768) { openNav(); }
+
+        // --- Leaderboard & Modal Logic ---
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const leaderboardContent = document.getElementById('leaderboard-content');
+        const statsModal = document.getElementById('stats-modal');
+        const modalContent = document.getElementById('modal-content');
+        let currentPeriodData = [];
+
+        async function fetchAndRenderRankings(period = 'all') {
+            loadingIndicator.classList.remove('hidden');
+            leaderboardContent.innerHTML = '';
+            try {
+                const response = await fetch(`/api/rankings?period=${period}`);
+                if (!response.ok) throw new Error('Gagal mengambil data peringkat.');
+                currentPeriodData = await response.json();
+                renderLeaderboard(currentPeriodData);
+            } catch (error) {
+                leaderboardContent.innerHTML = `<p class="text-red-500 text-center">${error.message}</p>`;
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        function renderLeaderboard(data) {
+            if (data.length === 0) {
+                leaderboardContent.innerHTML = '<div class="bg-white p-6 rounded-lg shadow-lg text-center text-gray-500 py-10">Belum ada data peringkat untuk periode ini.</div>';
+                return;
+            }
+            const champion = data[0];
+            const podium = data.slice(1, 3);
+            const others = data.slice(3);
+            
+            let contentHTML = `
+                ${renderChampionSpotlight(champion)}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-8">
+                    ${renderPodium(podium)}
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-700">Peringkat Lainnya</h3>
+                    <div class="space-y-3">
+                        ${renderOtherRankings(others)}
+                    </div>
+                </div>
+            `;
+            leaderboardContent.innerHTML = contentHTML;
+        }
+
+        function getInitials(name) {
+            return name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase();
+        }
+
+        function renderChampionSpotlight(champion) {
+            if (!champion) return '';
+            const initials = getInitials(champion.name);
+            return `
+                <div onclick="showStudentStats('${champion.id}')" class="leaderboard-item bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-lg shadow-2xl p-6 text-center">
+                    <p class="font-semibold text-indigo-200">PERINGKAT #1</p>
+                    <div class="flex items-center justify-center h-24 w-24 rounded-full bg-white text-indigo-600 font-bold text-4xl mx-auto my-4 border-4 border-yellow-300">
+                        ${initials}
+                    </div>
+                    <h2 class="text-3xl font-bold text-yellow-300">${champion.name} 🥇</h2>
+                    <p class="text-lg text-indigo-200">Skor: ${champion.score}</p>
+                </div>`;
+        }
+        
+        function renderPodium(podium) {
+            if (podium.length === 0) return '';
+            const medals = ['🥈', '🥉'];
+            return podium.map((player, index) => {
+                 const rank = index + 2;
+                 const initials = getInitials(player.name);
+                 return `
+                    <div onclick="showStudentStats('${player.id}')" class="leaderboard-item bg-white p-4 rounded-lg shadow-lg text-center">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-gray-200 font-bold text-2xl mx-auto mb-3">${initials}</div>
+                        <p class="font-bold text-gray-800">${player.name} ${medals[index]}</p>
+                        <p class="text-gray-500">Skor: ${player.score}</p>
+                    </div>
+                 `
+            }).join('');
+        }
+
+        function renderOtherRankings(others) {
+            if (others.length === 0) return '<p class="text-gray-500 text-center italic">Tidak ada peringkat lainnya.</p>';
+            return others.map((player, index) => {
+                const rank = index + 4;
+                const initials = getInitials(player.name);
+                return `
+                    <div onclick="showStudentStats('${player.id}')" class="leaderboard-item flex items-center bg-gray-50 p-3 rounded-lg">
+                        <div class="w-8 text-lg font-bold text-gray-500">${rank}</div>
+                        <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-gray-500 text-white font-semibold">${initials}</div>
+                        <div class="ml-4 flex-grow font-semibold text-gray-700">${player.name}</div>
+                        <div class="font-bold text-indigo-600">Skor: ${player.score}</div>
+                    </div>`;
+            }).join('');
+        }
+
+        function changePeriod(period, element) {
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            element.classList.add('active');
+            fetchAndRenderRankings(period);
+        }
+
+        function closeStatsModal() {
+            statsModal.classList.add('hidden');
+            modalContent.innerHTML = '';
+        }
+
+        async function showStudentStats(studentId) {
+            modalContent.innerHTML = '<p class="text-center text-gray-500 py-10">Memuat statistik...</p>';
+            statsModal.classList.remove('hidden');
+            try {
+                const response = await fetch(`/api/student/${studentId}/stats`);
+                if (!response.ok) throw new Error('Gagal mengambil statistik siswa.');
+                const data = await response.json();
+                
+                // --- PERBAIKAN DI SINI ---
+                // Pastikan data.badges adalah array sebelum digunakan
+                if (!data.badges) {
+                    data.badges = [];
+                }
+                
+                const isChampion = currentPeriodData.length > 0 && currentPeriodData[0].id === studentId;
+                if (isChampion) {
+                    data.badges.unshift({ name: 'Sang Juara', icon: 'fas fa-trophy', color: 'text-yellow-400', description: 'Peringkat #1 pada periode ini.' });
+                }
+
+                renderStatsModal(data);
+            } catch (error) {
+                modalContent.innerHTML = `<p class="text-red-500 text-center py-10">${error.message}</p>`;
+            }
+        }
+
+        function renderStatsModal(data) {
+            const stats = data.stats;
+            const statsHTML = Object.entries(stats).map(([key, value]) => `
+                <div class="flex justify-between items-center py-2 border-b"><span class="text-gray-600">${key}</span><span class="font-bold text-gray-800">${value}x</span></div>`).join('');
+            
+            const badgesHTML = data.badges.map(badge => `
+                <div class="badge-tooltip relative flex items-center p-2 bg-gray-100 rounded">
+                    <i class="${badge.icon} ${badge.color} text-2xl"></i>
+                    <span class="ml-3 font-semibold text-gray-700">${badge.name}</span>
+                    <div class="tooltip-text absolute z-10 w-48 p-2 -mt-16 text-sm leading-tight text-white transform -translate-x-1/2 bg-gray-800 rounded-lg shadow-lg left-1/2">
+                        ${badge.description}
+                    </div>
+                </div>
+            `).join('');
+
+            modalContent.innerHTML = `
+                <h3 class="text-2xl font-bold mb-1">${data.name}</h3>
+                <p class="text-gray-500 mb-4">Ringkasan & Lencana Prestasi</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="font-semibold mb-2">Statistik</h4>
+                        ${statsHTML || '<p class="text-gray-500">Belum ada data.</p>'}
+                    </div>
+                    <div>
+                        <h4 class="font-semibold mb-2">Lencana</h4>
+                        <div class="space-y-2">
+                            ${badgesHTML || '<p class="text-gray-500">Belum ada lencana.</p>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => fetchAndRenderRankings('all'));
+    </script>
+</body>
+</html>
+

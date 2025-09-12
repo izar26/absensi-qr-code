@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Absensi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; transition: margin-left .5s; }
+        .sidebar { height: 100%; width: 250px; position: fixed; z-index: 1; top: 0; left: 0; background-color: #1a202c; overflow-x: hidden; transition: 0.5s; padding-top: 60px; }
+        .sidebar a { padding: 10px 15px; text-decoration: none; font-size: 18px; color: #cbd5e0; display: block; transition: 0.3s; }
+        .sidebar a:hover { color: #ffffff; background-color: #4a5568; }
+        .sidebar .closebtn { position: absolute; top: 0; right: 25px; font-size: 36px; margin-left: 50px; display: none; }
+        .main-content { transition: margin-left .5s; padding: 20px; }
+        .openbtn { font-size: 20px; cursor: pointer; background-color: #1a202c; color: white; padding: 10px 15px; border: none; }
+        @media screen and (max-width: 768px) {
+            .sidebar { width: 0; }
+            .sidebar .closebtn { display: block; }
+            .main-content { margin-left: 0 !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="mySidebar" class="sidebar">
+    <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+    <a href="/dashboard.html" class="bg-gray-700 text-white"><i class="fas fa-tachometer-alt fa-fw mr-3"></i>Dashboard</a>
+    <a href="/scanner.html"><i class="fas fa-qrcode fa-fw mr-3"></i>Scanner</a>
+    <a href="/admin.html"><i class="fas fa-users-cog fa-fw mr-3"></i>Kelola Siswa</a>
+    <a href="/sesi.html"><i class="fas fa-clock fa-fw mr-3"></i>Kelola Sesi</a>
+    <a href="/laporan.html"><i class="fas fa-chart-bar fa-fw mr-3"></i>Laporan Harian</a>
+    <a href="/grafik.html"><i class="fas fa-trophy fa-fw mr-3"></i>Grafik Peringkat</a>
+    <a href="/broadcast.html"><i class="fas fa-bullhorn fa-fw mr-3"></i>Broadcast WA</a>
+    <a href="/rekap.html"><i class="fas fa-file-invoice fa-fw mr-3"></i>Rekap Bulanan</a>
+    <a href="/status.html"><i class="fas fa-signal fa-fw mr-3"></i>Status Sistem</a>
+</div>
+
+    <div id="main" class="main-content">
+        <button class="openbtn rounded-md mb-4" onclick="openNav()">&#9776; Menu</button>
+        
+        <div class="container mx-auto">
+            <h1 class="text-3xl font-bold mb-6 text-gray-800">Dashboard Absensi Hari Ini</h1>
+
+            <!-- Kartu Statistik -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center">
+                    <div class="bg-blue-500 text-white rounded-full h-16 w-16 flex items-center justify-center text-2xl mr-4">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">Total Siswa</p>
+                        <p id="total-students" class="text-3xl font-bold">0</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center">
+                    <div class="bg-green-500 text-white rounded-full h-16 w-16 flex items-center justify-center text-2xl mr-4">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">Sudah Absen</p>
+                        <p id="present-today" class="text-3xl font-bold">0</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md flex items-center">
+                    <div class="bg-red-500 text-white rounded-full h-16 w-16 flex items-center justify-center text-2xl mr-4">
+                        <i class="fas fa-user-clock"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">Belum Absen</p>
+                        <p id="not-present-today" class="text-3xl font-bold">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grafik dan Shortcut -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-2xl font-semibold mb-4">Ringkasan Status Absensi</h2>
+                    <div class="h-80 flex items-center justify-center">
+                         <canvas id="attendance-chart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-2xl font-semibold mb-4">Akses Cepat</h2>
+                    <div class="space-y-4">
+                        <a href="/scanner.html" class="block w-full text-center bg-indigo-600 text-white py-4 px-4 rounded-md hover:bg-indigo-700 text-lg font-semibold">
+                            <i class="fas fa-qrcode mr-2"></i>Mulai Scan
+                        </a>
+                        <a href="/laporan.html" class="block w-full text-center bg-gray-600 text-white py-4 px-4 rounded-md hover:bg-gray-700 text-lg font-semibold">
+                           <i class="fas fa-file-alt mr-2"></i>Lihat Laporan Harian
+                        </a>
+                        <a href="/admin.html" class="block w-full text-center bg-gray-600 text-white py-4 px-4 rounded-md hover:bg-gray-700 text-lg font-semibold">
+                            <i class="fas fa-users-cog mr-2"></i>Kelola Data Siswa
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- Sidebar Logic ---
+        function openNav() {
+            if (window.innerWidth > 768) {
+                document.getElementById("mySidebar").style.width = "250px";
+                document.getElementById("main").style.marginLeft = "250px";
+            } else {
+                document.getElementById("mySidebar").style.width = "250px";
+            }
+        }
+        function closeNav() {
+            document.getElementById("mySidebar").style.width = "0";
+            if (window.innerWidth > 768) {
+                document.getElementById("main").style.marginLeft = "0";
+            }
+        }
+        if (window.innerWidth > 768) { openNav(); }
+
+        // --- Dashboard Logic ---
+        async function fetchDashboardSummary() {
+            try {
+                const response = await fetch('/api/dashboard/summary');
+                if (!response.ok) throw new Error('Gagal mengambil data summary.');
+                const data = await response.json();
+
+                // Update kartu statistik
+                document.getElementById('total-students').textContent = data.totalStudents;
+                document.getElementById('present-today').textContent = data.presentToday;
+                document.getElementById('not-present-today').textContent = data.notPresentToday;
+
+                // Siapkan data untuk chart
+                const chartData = {
+                    labels: [...Object.keys(data.statusBreakdown), 'Belum Absen'],
+                    datasets: [{
+                        label: 'Siswa',
+                        data: [...Object.values(data.statusBreakdown), data.notPresentToday],
+                        backgroundColor: [
+                            '#4CAF50', // Tepat Waktu
+                            '#FFC107', // Terlambat
+                            '#2196F3', // Hadir (Manual)
+                            '#9C27B0', // Sakit
+                            '#673AB7', // Izin
+                            '#F44336', // Alfa
+                            '#9E9E9E'  // Belum Absen
+                        ],
+                        hoverOffset: 4
+                    }]
+                };
+
+                // Render chart
+                const ctx = document.getElementById('attendance-chart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'pie',
+                    data: chartData,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            }
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error fetching dashboard data:', error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchDashboardSummary);
+    </script>
+</body>
+</html>

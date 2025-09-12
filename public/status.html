@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pusat Kendali Aplikasi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .sidebar { height: 100%; width: 0; position: fixed; z-index: 10; top: 0; left: 0; background-color: #111827; overflow-x: hidden; transition: 0.3s; padding-top: 60px; }
+        .sidebar a { padding: 10px 15px; text-decoration: none; font-size: 18px; color: #9ca3af; display: block; transition: 0.3s; border-left: 3px solid transparent; }
+        .sidebar a:hover { color: #ffffff; background-color: #1f2937; }
+        .sidebar a.active { color: #ffffff; background-color: #374151; border-left-color: #6366f1; }
+        .sidebar .closebtn { position: absolute; top: 0; right: 25px; font-size: 36px; }
+        .main-content { transition: margin-left .3s; padding: 20px; }
+        .openbtn { font-size: 20px; cursor: pointer; background-color: #111827; color: white; padding: 10px 15px; border: none; }
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+        .status-dot.connecting { background-color: #3b82f6; animation: pulse 2s infinite; }
+        .status-dot.connected { background-color: #22c55e; }
+        .status-dot.disconnected, .status-dot.error { background-color: #ef4444; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        #log-container p { animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="mySidebar" class="sidebar"></div>
+    <div id="main" class="main-content">
+        <button class="openbtn rounded-md mb-4" onclick="openNav()">&#9776; Menu</button>
+        <div class="container mx-auto">
+            <h1 class="text-3xl font-bold mb-2 text-gray-800">Pusat Kendali Aplikasi</h1>
+            <p class="text-gray-600 mb-6">Pantau kesehatan, lihat log, dan kelola sesi WhatsApp dari satu tempat.</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-1 space-y-6">
+                    <!-- Panel Info Server -->
+                    <div class="bg-white p-6 rounded-lg shadow-lg">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-800">Informasi Server</h2>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between"><span class="text-gray-500">Node.js Version:</span><span id="node-version" class="font-mono font-semibold">Memuat...</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Platform:</span><span id="platform" class="font-mono font-semibold">Memuat...</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Alamat Lokal:</span><span id="local-ip" class="font-mono font-semibold">Memuat...</span></div>
+                        </div>
+                    </div>
+                    <!-- Panel Status Sistem -->
+                    <div class="bg-white p-6 rounded-lg shadow-lg">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-800">Kesehatan Sistem</h2>
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center"><span class="font-medium text-gray-700"><i class="fas fa-database mr-2 text-blue-500"></i>Database</span><div id="db-status" class="flex items-center font-semibold rounded-full px-2 py-1 text-xs"></div></div>
+                            <div class="flex justify-between items-center"><span class="font-medium text-gray-700"><i class="fab fa-whatsapp mr-2 text-green-500"></i>Bot WhatsApp</span><div id="wa-status" class="flex items-center font-semibold rounded-full px-2 py-1 text-xs"></div></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Kolom QR & Logs -->
+                <div class="lg:col-span-2 grid grid-cols-1 gap-8">
+                    <div class="bg-white p-6 rounded-lg shadow-lg">
+                        <h2 class="text-xl font-semibold mb-4">Login & Aksi</h2>
+                        <div class="flex flex-col md:flex-row gap-6">
+                            <div id="qr-container" class="w-full md:w-56 h-56 bg-gray-100 flex items-center justify-center rounded-lg"></div>
+                            <div class="flex-1 flex flex-col justify-between">
+                                <div id="wa-instructions"></div>
+                                <button id="logout-btn" class="w-full mt-4 bg-red-600 text-white py-3 px-4 rounded-md hover:bg-red-700 font-semibold disabled:bg-red-400 disabled:cursor-not-allowed"><i class="fas fa-sign-out-alt mr-2"></i>Logout & Hapus Sesi</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-100">Log Aktivitas</h2>
+                        <div id="log-container" class="font-mono text-sm h-64 overflow-y-auto space-y-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Sidebar Logic ---
+        const sidebar = document.getElementById("mySidebar");
+        const main = document.getElementById("main");
+        function openNav() { const width = window.innerWidth > 768 ? "250px" : "100%"; sidebar.style.width = width; if (window.innerWidth > 768) main.style.marginLeft = "250px"; }
+        function closeNav() { sidebar.style.width = "0"; main.style.marginLeft = "0"; }
+
+        // --- WebSocket & Status Logic ---
+        const logContainer = document.getElementById('log-container');
+        const qrContainer = document.getElementById('qr-container');
+        const logoutBtn = document.getElementById('logout-btn');
+        const dbStatusEl = document.getElementById('db-status');
+        const waStatusEl = document.getElementById('wa-status');
+        const waInstructions = document.getElementById('wa-instructions');
+        let qrCodeInstance = null;
+
+        const statusStyles = {
+            connecting: { text: 'Menghubungkan...', dot: 'bg-blue-500 animate-pulse', bg: 'bg-blue-100 text-blue-800' },
+            connected: { text: 'Terhubung', dot: 'bg-green-500', bg: 'bg-green-100 text-green-800' },
+            disconnected: { text: 'Terputus', dot: 'bg-red-500', bg: 'bg-red-100 text-red-800' },
+            error: { text: 'Gagal', dot: 'bg-red-500', bg: 'bg-red-100 text-red-800' },
+            initializing: { text: 'Menginisialisasi...', dot: 'bg-blue-500 animate-pulse', bg: 'bg-blue-100 text-blue-800' },
+            qr: { text: 'Menunggu Scan', dot: 'bg-yellow-500 animate-pulse', bg: 'bg-yellow-100 text-yellow-800' }
+        };
+
+        function updateStatus(component, status) {
+            const style = statusStyles[status] || statusStyles['disconnected'];
+            const el = component === 'database' ? dbStatusEl : waStatusEl;
+            el.innerHTML = `<span class="status-dot ${style.dot}"></span> ${style.text}`;
+            el.className = `flex items-center font-semibold rounded-full px-2 py-1 text-xs ${style.bg}`;
+            
+            if(component === 'whatsapp') {
+                logoutBtn.disabled = !(status === 'connected' || status === 'qr');
+            }
+        }
+
+        function addLog(log) {
+            const colors = { info: 'text-gray-400', success: 'text-green-400', error: 'text-red-400', qr: 'text-yellow-400' };
+            const logEntry = document.createElement('p');
+            logEntry.className = colors[log.level];
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${log.message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function setupEventSource() {
+            addLog({ message: 'Menghubungkan ke stream status server...', level: 'info' });
+            
+            const eventSource = new EventSource('/api/status-stream');
+
+            eventSource.onopen = () => {
+                addLog({ message: '✅ Berhasil terhubung ke stream status.', level: 'success' });
+            };
+
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'log_history') {
+                    logContainer.innerHTML = '';
+                    data.history.forEach(log => addLog(log));
+                } else if (data.type === 'log') {
+                    addLog(data);
+                } else if (data.type === 'status_update') {
+                    updateStatus(data.component, data.status);
+                } else if (data.type === 'qr') {
+                    waInstructions.innerHTML = `<p class="font-semibold text-gray-700">Scan untuk Login</p><p class="text-sm text-gray-500 mt-1">Buka WhatsApp di HP Anda, masuk ke menu Perangkat Tertaut dan scan QR code di samping.</p>`;
+                    qrContainer.innerHTML = '';
+                    new QRCode(qrContainer, { text: data.qrString, width: 224, height: 224, colorDark: "#111827", colorLight: "#ffffff" });
+                } else if (data.type === 'ready') {
+                    waInstructions.innerHTML = `<p class="font-semibold text-gray-700">Berhasil Terhubung!</p><p class="text-sm text-gray-500 mt-1">Bot WhatsApp Anda sudah aktif. Anda bisa menutup halaman ini.</p>`;
+                    qrContainer.innerHTML = `<div class="text-center"><i class="fas fa-check-circle text-8xl text-green-500"></i></div>`;
+                } else if (data.type === 'logout') {
+                    waInstructions.innerHTML = `<p class="font-semibold text-gray-700">Sesi Berakhir</p><p class="text-sm text-gray-500 mt-1">Sistem akan memulai ulang proses login secara otomatis.</p>`;
+                    qrContainer.innerHTML = `<div class="text-center"><i class="fas fa-hourglass-start text-8xl text-gray-400 animate-spin"></i></div>`;
+                }
+            };
+
+            eventSource.onerror = () => {
+                addLog({ message: '❌ Koneksi ke stream status terputus. Mencoba lagi dalam 5 detik...', level: 'error' });
+                updateStatus('database', 'disconnected');
+                updateStatus('whatsapp', 'disconnected');
+                eventSource.close();
+                setTimeout(setupEventSource, 5000);
+            };
+        }
+
+        async function fetchServerInfo() {
+            try {
+                const response = await fetch('/api/server-info');
+                const data = await response.json();
+                document.getElementById('node-version').textContent = data.nodeVersion;
+                document.getElementById('platform').textContent = data.platform;
+                document.getElementById('local-ip').textContent = data.localIp;
+            } catch (error) { console.error('Gagal memuat info server:', error); }
+        }
+
+        logoutBtn.addEventListener('click', async () => {
+            if (!confirm('Anda yakin ingin logout? Anda perlu scan QR Code lagi untuk login.')) return;
+            try {
+                addLog({ message: 'Mengirim permintaan logout...', level: 'info' });
+                await fetch('/api/logout', { method: 'POST' });
+            } catch (error) { addLog({ message: 'Gagal mengirim permintaan logout.', level: 'error' }); }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            sidebar.innerHTML = `
+                <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+                <a href="/dashboard.html"><i class="fas fa-tachometer-alt fa-fw mr-3"></i>Dashboard</a>
+                <a href="/scanner.html"><i class="fas fa-qrcode fa-fw mr-3"></i>Scanner</a>
+                <a href="/admin.html"><i class="fas fa-users-cog fa-fw mr-3"></i>Kelola Siswa</a>
+                <a href="/sesi.html"><i class="fas fa-clock fa-fw mr-3"></i>Kelola Sesi</a>
+                <a href="/laporan.html"><i class="fas fa-chart-bar fa-fw mr-3"></i>Laporan Harian</a>
+                <a href="/grafik.html"><i class="fas fa-trophy fa-fw mr-3"></i>Grafik Peringkat</a>
+                <a href="/broadcast.html"><i class="fas fa-bullhorn fa-fw mr-3"></i>Broadcast WA</a>
+                <a href="/rekap.html"><i class="fas fa-file-invoice fa-fw mr-3"></i>Rekap Bulanan</a>
+                <a href="/status.html" class="active"><i class="fas fa-signal fa-fw mr-3"></i>Status Sistem</a>
+            `;
+            if (window.innerWidth > 768) { openNav(); }
+            updateStatus('database', 'connecting');
+            updateStatus('whatsapp', 'connecting');
+            fetchServerInfo();
+            setupEventSource();
+        });
+    </script>
+</body>
+</html>
+

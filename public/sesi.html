@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelola Sesi Absensi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; transition: margin-left .5s; }
+        .sidebar { height: 100%; width: 250px; position: fixed; z-index: 1; top: 0; left: 0; background-color: #1a202c; overflow-x: hidden; transition: 0.5s; padding-top: 60px; }
+        .sidebar a { padding: 10px 15px; text-decoration: none; font-size: 18px; color: #cbd5e0; display: block; transition: 0.3s; }
+        .sidebar a:hover { color: #ffffff; background-color: #4a5568; }
+        .sidebar .closebtn { position: absolute; top: 0; right: 25px; font-size: 36px; margin-left: 50px; display: none; }
+        .main-content { transition: margin-left .5s; padding: 20px; }
+        .openbtn { font-size: 20px; cursor: pointer; background-color: #1a202c; color: white; padding: 10px 15px; border: none; }
+        @media screen and (max-width: 768px) {
+            .sidebar { width: 0; }
+            .sidebar .closebtn { display: block; }
+            .main-content { margin-left: 0 !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="mySidebar" class="sidebar">
+    <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+    <a href="/dashboard.html"><i class="fas fa-tachometer-alt fa-fw mr-3"></i>Dashboard</a>
+    <a href="/scanner.html"><i class="fas fa-qrcode fa-fw mr-3"></i>Scanner</a>
+    <a href="/admin.html"><i class="fas fa-users-cog fa-fw mr-3"></i>Kelola Siswa</a>
+    <a href="/sesi.html" class="bg-gray-700 text-white"><i class="fas fa-clock fa-fw mr-3"></i>Kelola Sesi</a>
+    <a href="/laporan.html"><i class="fas fa-chart-bar fa-fw mr-3"></i>Laporan Harian</a>
+    <a href="/grafik.html"><i class="fas fa-trophy fa-fw mr-3"></i>Grafik Peringkat</a>
+    <a href="/broadcast.html"><i class="fas fa-bullhorn fa-fw mr-3"></i>Broadcast WA</a>
+    <a href="/rekap.html"><i class="fas fa-file-invoice fa-fw mr-3"></i>Rekap Bulanan</a>
+    <a href="/status.html"><i class="fas fa-signal fa-fw mr-3"></i>Status Sistem</a>
+</div>
+
+    <div id="main" class="main-content">
+        <button class="openbtn rounded-md mb-4" onclick="openNav()">&#9776; Menu</button>
+        
+        <div class="container mx-auto">
+            <h1 class="text-3xl font-bold mb-6 text-gray-800">Kelola Sesi Absensi</h1>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Kolom Form Tambah Sesi -->
+                <div class="md:col-span-1 bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-2xl font-semibold mb-4">Buat Sesi Baru</h2>
+                    <form id="session-form">
+                        <div class="mb-4">
+                            <label for="session_name" class="block text-sm font-medium text-gray-700">Nama Sesi</label>
+                            <input type="text" id="session_name" name="session_name" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="Contoh: Sesi Pagi" required>
+                        </div>
+                        <div class="mb-4">
+                            <label for="late_time" class="block text-sm font-medium text-gray-700">Batas Waktu Telat</label>
+                            <input type="time" id="late_time" name="late_time" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Simpan Sesi
+                        </button>
+                    </form>
+                    <div id="form-status" class="mt-4 text-center"></div>
+                </div>
+
+                <!-- Kolom Daftar Sesi -->
+                <div class="md:col-span-2 bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-2xl font-semibold mb-4">Daftar Sesi</h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Sesi</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Batas Telat</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sessions-table" class="bg-white divide-y divide-gray-200">
+                                <!-- Data Sesi akan dimuat di sini -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Sidebar Logic ---
+        function openNav() {
+            if (window.innerWidth > 768) {
+                document.getElementById("mySidebar").style.width = "250px";
+                document.getElementById("main").style.marginLeft = "250px";
+            } else {
+                document.getElementById("mySidebar").style.width = "250px";
+            }
+        }
+        function closeNav() {
+            document.getElementById("mySidebar").style.width = "0";
+            if (window.innerWidth > 768) {
+                document.getElementById("main").style.marginLeft = "0";
+            }
+        }
+        if (window.innerWidth > 768) { openNav(); }
+
+        // --- Aplikasi Logic ---
+        const sessionForm = document.getElementById('session-form');
+        const formStatus = document.getElementById('form-status');
+
+        async function fetchSessions() {
+            try {
+                const response = await fetch('/api/sessions');
+                const sessions = await response.json();
+                const tableBody = document.getElementById('sessions-table');
+                tableBody.innerHTML = '';
+                if (Array.isArray(sessions)) {
+                    sessions.forEach(session => {
+                        const row = `
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap">${session.session_name}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">${session.late_time}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    ${session.is_active 
+                                        ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Aktif</span>' 
+                                        : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Non-Aktif</span>'
+                                    }
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button onclick="activateSession(${session.id})" class="text-indigo-600 hover:text-indigo-900 disabled:text-gray-400" ${session.is_active ? 'disabled' : ''}>Aktifkan</button>
+                                    <button onclick="deleteSession(${session.id}, '${session.session_name}')" class="text-red-600 hover:text-red-900 ml-4">Hapus</button>
+                                </td>
+                            </tr>
+                        `;
+                        tableBody.innerHTML += row;
+                    });
+                }
+            } catch (error) {
+                console.error('Gagal mengambil data sesi:', error);
+            }
+        }
+        
+        sessionForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            formStatus.innerHTML = '';
+            const formData = new FormData(sessionForm);
+            const data = Object.fromEntries(formData.entries());
+
+            try {
+                const response = await fetch('/api/sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+
+                formStatus.innerHTML = `<span class="text-green-600">${result.message}</span>`;
+                sessionForm.reset();
+                fetchSessions();
+            } catch (error) {
+                formStatus.innerHTML = `<span class="text-red-600">${error.message}</span>`;
+            }
+        });
+
+        async function activateSession(id) {
+            try {
+                const response = await fetch(`/api/sessions/activate/${id}`, { method: 'PUT' });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+                fetchSessions();
+            } catch (error) {
+                alert('Gagal mengaktifkan sesi: ' + error.message);
+            }
+        }
+        
+        async function deleteSession(id, name) {
+            if (!confirm(`Apakah Anda yakin ingin menghapus sesi "${name}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+
+                alert(`Sesi "${name}" berhasil dihapus.`);
+                fetchSessions();
+            } catch (error) {
+                console.error('Error saat menghapus sesi:', error);
+                alert('Gagal menghapus sesi. Pastikan sesi ini tidak sedang digunakan dalam data absensi yang sudah ada.');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchSessions);
+    </script>
+</body>
+</html>
+
