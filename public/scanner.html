@@ -16,7 +16,10 @@
         .main-content { transition: margin-left .5s; padding: 20px; }
         .openbtn { font-size: 20px; cursor: pointer; background-color: #1a202c; color: white; padding: 10px 15px; border: none; }
         #qr-reader { border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; position: relative; }
-        #qr-reader video.mirrored { transform: scaleX(-1); }
+        /* Kelas CSS untuk membalikkan video */
+        #qr-reader video.mirrored {
+            transform: scaleX(-1);
+        }
         .modal { z-index: 30; }
         @media screen and (max-width: 768px) {
             .sidebar { width: 0; }
@@ -52,10 +55,10 @@
                             <select id="camera-select" class="w-full p-2 border-gray-300 rounded-md"></select>
                         </div>
                         <button id="mirror-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded inline-flex items-center">
-                            <i class="fas fa-camera-rotate mr-2"></i>Balikkan Kamera
+                            <i class="fas fa-camera-rotate mr-2"></i>Balikkan Tampilan
                         </button>
                     </div>
-                    <div id="qr-reader" class="w-full bg-gray-900"></div>
+                    <div id="qr-reader" class="w-full bg-gray-900 aspect-square md:aspect-video"></div>
                     <div id="scan-result" class="mt-4 text-center font-medium"></div>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-md">
@@ -69,9 +72,7 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                 </tr>
                             </thead>
-                            <tbody id="attendance-table" class="bg-white divide-y divide-gray-200">
-                                <!-- Data absensi akan dimuat di sini -->
-                            </tbody>
+                            <tbody id="attendance-table" class="bg-white divide-y divide-gray-200"></tbody>
                         </table>
                     </div>
                 </div>
@@ -79,12 +80,9 @@
         </div>
     </div>
 
-    <!-- Modal Konfirmasi Scan -->
     <div id="confirmation-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center modal hidden">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-sm mx-4 p-6 text-center transform transition-all">
-            <div id="modal-content">
-                <!-- Konten akan di-generate oleh JavaScript -->
-            </div>
+            <div id="modal-content"></div>
             <div id="modal-status" class="mt-4 text-sm font-medium"></div>
             <div class="mt-6 flex justify-center gap-4">
                 <button id="cancel-scan-btn" class="py-2 px-6 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-md font-semibold">Batal</button>
@@ -113,7 +111,7 @@
 
         // --- Aplikasi Logic ---
         const scanResultEl = document.getElementById('scan-result');
-        let html5QrcodeScanner;
+        let html5QrCode; // Diubah dari html5QrcodeScanner
         
         // --- Logika Kontrol Kamera ---
         const mirrorBtn = document.getElementById('mirror-btn');
@@ -133,15 +131,20 @@
         
         function closeConfirmationModal() {
             confirmationModal.classList.add('hidden');
-            if (html5QrcodeScanner && html5QrcodeScanner.getState() === 1) { // 1 = PAUSED
-                html5QrcodeScanner.resume();
+            // PERBAIKAN: Selalu coba resume scanner saat modal ditutup
+            if (html5QrCode && html5QrCode.getState() === 2) { // 2 = PAUSED
+                html5QrCode.resume();
             }
         }
 
         async function showConfirmationModal(studentId) {
-            if (html5QrcodeScanner) html5QrcodeScanner.pause();
+            // PERBAIKAN: Jeda scanner saat QR terdeteksi
+            if (html5QrCode && html5QrCode.getState() === 1) { // 1 = SCANNING
+                 html5QrCode.pause();
+            }
             modalContent.innerHTML = '<p class="py-8">Memverifikasi data siswa...</p>';
             modalStatus.innerHTML = '';
+            confirmBtn.disabled = true; // Nonaktifkan tombol saat loading
             confirmationModal.classList.remove('hidden');
 
             try {
@@ -159,12 +162,14 @@
                     <p class="text-gray-500">ID: ${studentId}</p>
                 `;
                 
-                // Atur tombol konfirmasi untuk mengirim data
                 confirmBtn.onclick = () => sendScanData(studentId);
+                confirmBtn.disabled = false; // Aktifkan tombol lagi
 
             } catch (error) {
                 modalContent.innerHTML = `<p class="text-red-500 font-semibold py-8">${error.message}</p>`;
-                confirmBtn.onclick = null; // Matikan tombol jika error
+                confirmBtn.onclick = null;
+                // Tutup otomatis setelah 3 detik jika data siswa tidak ditemukan
+                setTimeout(closeConfirmationModal, 3000);
             }
         }
 
@@ -175,6 +180,8 @@
 
         async function sendScanData(studentId) {
             modalStatus.innerHTML = `<p class="text-blue-600">Mencatat kehadiran...</p>`;
+            confirmBtn.disabled = true;
+            cancelBtn.disabled = true;
             try {
                 const response = await fetch('/api/scan', {
                     method: 'POST',
@@ -184,18 +191,23 @@
                 const result = await response.json();
                 if (response.ok) {
                     modalStatus.innerHTML = `<p class="text-green-600 animate-pulse">${result.message}</p>`;
-                    fetchAttendanceData(); // Refresh tabel absensi di latar belakang
+                    fetchAttendanceData();
                     setTimeout(closeConfirmationModal, 1500);
                 } else {
                     throw new Error(result.message);
                 }
             } catch (error) {
-                modalStatus.innerHTML = `<p class="text-red-600">${error.message}</p>`;
-                 setTimeout(closeConfirmationModal, 3000); // Tutup modal setelah menampilkan error
+                modalStatus.innerHTML = `<p class="text-red-500">${error.message}</p>`;
+                 setTimeout(closeConfirmationModal, 3000);
+            } finally {
+                // Selalu aktifkan tombol lagi setelah selesai, kecuali saat berhasil
+                if(!confirmationModal.classList.contains('hidden')){
+                    confirmBtn.disabled = false;
+                    cancelBtn.disabled = false;
+                }
             }
         }
 
-        // --- FUNGSI YANG DITAMBAHKAN KEMBALI ---
         async function fetchAttendanceData() {
              try {
                 const response = await fetch('/api/attendance/today');
@@ -211,7 +223,8 @@
                             <td class="px-6 py-4 whitespace-nowrap">${item.time}</td>
                             <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">${item.status}</span></td>
                         </tr>`;
-                        tableBody.innerHTML += row;
+                        // Masukkan baris baru di paling atas
+                        tableBody.insertAdjacentHTML('afterbegin', row);
                     });
                 }
             } catch (error) {
@@ -238,44 +251,69 @@
                 }
             } catch (error) {
                 sessionInfoEl.innerHTML = `<p class="font-bold text-red-700">Gagal memuat info sesi.</p>`;
-                console.error('Error fetching active session:', error);
             }
         }
-
-        // --- Logika Inisialisasi Scanner ---
-        function startScanner(deviceId) {
-            // Penggunaan Html5QrcodeScanner sudah tidak disarankan, ganti ke Html5Qrcode
-            // const config = { fps: 10, qrbox: { width: 250, height: 250 }, supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] };
-            // if (deviceId) { config.deviceId = { exact: deviceId }; }
-            // html5QrcodeScanner.start( deviceId ? { exact: deviceId } : { facingMode: "environment" }, config, onScanSuccess, (error) => {});
+        
+        function startScanner(cameraId) {
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            html5QrCode.start(
+                cameraId, 
+                config, 
+                onScanSuccess, 
+                (errorMessage) => { /* Abaikan error pemindaian berkelanjutan */ }
+            ).catch(err => {
+                console.error("Gagal memulai scanner:", err);
+            });
         }
 
-        function setupCameraSelector() {
-            html5QrcodeScanner = new Html5Qrcode("qr-reader"); // Inisialisasi di sini
+        function setupCamera() {
+            html5QrCode = new Html5Qrcode("qr-reader");
             const cameraSelect = document.getElementById('camera-select');
             const selectorContainer = document.getElementById('camera-selector-container');
             
             Html5Qrcode.getCameras().then(devices => {
                 if (devices && devices.length) {
                     let preferredCameraId = devices[0].id;
+                    let isFrontCamera = false;
+                    
                     if (devices.length > 1) {
                         selectorContainer.classList.remove('hidden');
                         devices.forEach(device => {
                             const option = new Option(device.label || `Kamera ${cameraSelect.length + 1}`, device.id);
                             cameraSelect.add(option);
-                            if (device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('environment')) {
+                            // Coba deteksi kamera belakang sebagai default
+                            if (device.label.toLowerCase().includes('back')) {
                                 preferredCameraId = device.id;
                             }
                         });
                         cameraSelect.value = preferredCameraId;
                     }
+
+                    // PERBAIKAN: Cek apakah kamera yang dipilih adalah kamera depan (untuk mirroring)
+                    const selectedDevice = devices.find(d => d.id === preferredCameraId);
+                    if (selectedDevice && (selectedDevice.label.toLowerCase().includes('front') || selectedDevice.label.toLowerCase().includes('webcam'))) {
+                         isFrontCamera = true;
+                    }
                     
-                    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-                    html5QrcodeScanner.start(preferredCameraId, config, onScanSuccess, (errorMessage) => { /* abaikan error */ });
+                    const videoElement = document.querySelector('#qr-reader video');
+                    if(isFrontCamera){
+                        if(videoElement) videoElement.classList.add('mirrored');
+                    } else {
+                        if(videoElement) videoElement.classList.remove('mirrored');
+                    }
+
+                    startScanner(preferredCameraId);
 
                     cameraSelect.addEventListener('change', () => {
-                        html5QrcodeScanner.stop().then(() => {
-                            html5QrcodeScanner.start(cameraSelect.value, config, onScanSuccess, (errorMessage) => { /* abaikan error */ });
+                        html5QrCode.stop().then(() => {
+                            const newCameraId = cameraSelect.value;
+                            const newSelectedDevice = devices.find(d => d.id === newCameraId);
+                            if (newSelectedDevice && (newSelectedDevice.label.toLowerCase().includes('front') || newSelectedDevice.label.toLowerCase().includes('webcam'))) {
+                                document.querySelector('#qr-reader video')?.classList.add('mirrored');
+                            } else {
+                                document.querySelector('#qr-reader video')?.classList.remove('mirrored');
+                            }
+                            startScanner(newCameraId);
                         }).catch(err => console.log("Gagal menghentikan scanner:", err));
                     });
                 }
@@ -286,11 +324,10 @@
         }
         
         document.addEventListener('DOMContentLoaded', () => {
-            setupCameraSelector();
+            setupCamera();
             fetchActiveSession();
-            fetchAttendanceData(); // Panggil juga fungsi ini saat halaman dimuat
+            fetchAttendanceData();
         });
     </script>
 </body>
 </html>
-
