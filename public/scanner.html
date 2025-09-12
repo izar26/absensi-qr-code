@@ -15,25 +15,8 @@
         .sidebar .closebtn { position: absolute; top: 0; right: 25px; font-size: 36px; margin-left: 50px; display: none; }
         .main-content { transition: margin-left .5s; padding: 20px; }
         .openbtn { font-size: 20px; cursor: pointer; background-color: #1a202c; color: white; padding: 10px 15px; border: none; }
-        
-        /* PERBAIKAN CSS UNTUK SCANNER */
-        #qr-reader {
-            width: 100%;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            overflow: hidden;
-            position: relative;
-        }
-        /* Pastikan video mengisi kontainer */
-        #qr-reader video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        #qr-reader video.mirrored {
-            transform: scaleX(-1);
-        }
-
+        #qr-reader { border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; position: relative; }
+        #qr-reader video.mirrored { transform: scaleX(-1); }
         .modal { z-index: 30; }
         @media screen and (max-width: 768px) {
             .sidebar { width: 0; }
@@ -65,14 +48,14 @@
                 <div class="bg-white p-6 rounded-lg shadow-md">
                     <h2 class="text-2xl font-semibold mb-4">Arahkan QR Code ke Kamera</h2>
                     <div class="flex flex-wrap gap-4 items-center mb-4">
-                        <div id="camera-selector-container" class="flex-grow">
+                        <div id="camera-selector-container" class="flex-grow hidden">
                             <select id="camera-select" class="w-full p-2 border-gray-300 rounded-md"></select>
                         </div>
                         <button id="mirror-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded inline-flex items-center">
-                            <i class="fas fa-camera-rotate mr-2"></i>Balikkan Tampilan
+                            <i class="fas fa-camera-rotate mr-2"></i>Balikkan Kamera
                         </button>
                     </div>
-                    <div id="qr-reader"></div>
+                    <div id="qr-reader" class="w-full bg-gray-900"></div>
                     <div id="scan-result" class="mt-4 text-center font-medium"></div>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-md">
@@ -86,7 +69,9 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                 </tr>
                             </thead>
-                            <tbody id="attendance-table" class="bg-white divide-y divide-gray-200"></tbody>
+                            <tbody id="attendance-table" class="bg-white divide-y divide-gray-200">
+                                <!-- Data absensi akan dimuat di sini -->
+                            </tbody>
                         </table>
                     </div>
                 </div>
@@ -94,13 +79,16 @@
         </div>
     </div>
 
+    <!-- Modal Konfirmasi Scan -->
     <div id="confirmation-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center modal hidden">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-sm mx-4 p-6 text-center transform transition-all">
-            <div id="modal-content"></div>
+            <div id="modal-content">
+                <!-- Konten akan di-generate oleh JavaScript -->
+            </div>
             <div id="modal-status" class="mt-4 text-sm font-medium"></div>
             <div class="mt-6 flex justify-center gap-4">
-                <button type="button" id="cancel-scan-btn" class="py-2 px-6 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-md font-semibold">Batal</button>
-                <button type="button" id="confirm-scan-btn" class="py-2 px-6 bg-green-500 hover:bg-green-600 text-white rounded-md font-semibold">Konfirmasi Hadir</button>
+                <button id="cancel-scan-btn" class="py-2 px-6 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-md font-semibold">Batal</button>
+                <button id="confirm-scan-btn" class="py-2 px-6 bg-green-500 hover:bg-green-600 text-white rounded-md font-semibold">Konfirmasi Hadir</button>
             </div>
         </div>
     </div>
@@ -108,24 +96,33 @@
     <script>
         // --- Sidebar Logic ---
         function openNav() {
-            if (window.innerWidth > 768) { document.getElementById("mySidebar").style.marginLeft = "250px"; }
-            document.getElementById("mySidebar").style.width = "250px";
+            if (window.innerWidth > 768) {
+                document.getElementById("mySidebar").style.width = "250px";
+                document.getElementById("main").style.marginLeft = "250px";
+            } else {
+                document.getElementById("mySidebar").style.width = "250px";
+            }
         }
         function closeNav() {
             document.getElementById("mySidebar").style.width = "0";
-            if (window.innerWidth > 768) { document.getElementById("main").style.marginLeft = "0"; }
+            if (window.innerWidth > 768) {
+                document.getElementById("main").style.marginLeft = "0";
+            }
         }
         if (window.innerWidth > 768) { openNav(); }
 
         // --- Aplikasi Logic ---
-        let html5QrCode;
+        const scanResultEl = document.getElementById('scan-result');
+        let html5QrcodeScanner;
         
+        // --- Logika Kontrol Kamera ---
         const mirrorBtn = document.getElementById('mirror-btn');
         mirrorBtn.addEventListener('click', () => {
             const video = document.querySelector('#qr-reader video');
             if (video) video.classList.toggle('mirrored');
         });
 
+        // --- Logika Modal Konfirmasi ---
         const confirmationModal = document.getElementById('confirmation-modal');
         const modalContent = document.getElementById('modal-content');
         const modalStatus = document.getElementById('modal-status');
@@ -136,22 +133,15 @@
         
         function closeConfirmationModal() {
             confirmationModal.classList.add('hidden');
-            if (html5QrCode && html5QrCode.isScanning) {
-                try {
-                    html5QrCode.resume();
-                } catch (e) {
-                    console.warn("Gagal melanjutkan scanner:", e);
-                }
+            if (html5QrcodeScanner && html5QrcodeScanner.getState() === 1) { // 1 = PAUSED
+                html5QrcodeScanner.resume();
             }
         }
 
         async function showConfirmationModal(studentId) {
-            if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.pause(true);
-            }
+            if (html5QrcodeScanner) html5QrcodeScanner.pause();
             modalContent.innerHTML = '<p class="py-8">Memverifikasi data siswa...</p>';
             modalStatus.innerHTML = '';
-            confirmBtn.disabled = true;
             confirmationModal.classList.remove('hidden');
 
             try {
@@ -166,25 +156,25 @@
                 modalContent.innerHTML = `
                     ${photoHTML}
                     <h3 class="text-2xl font-bold text-gray-800">${data.name}</h3>
+                    <p class="text-gray-500">ID: ${studentId}</p>
                 `;
+                
+                // Atur tombol konfirmasi untuk mengirim data
                 confirmBtn.onclick = () => sendScanData(studentId);
-                confirmBtn.disabled = false;
 
             } catch (error) {
                 modalContent.innerHTML = `<p class="text-red-500 font-semibold py-8">${error.message}</p>`;
-                confirmBtn.onclick = null;
-                setTimeout(closeConfirmationModal, 2500);
+                confirmBtn.onclick = null; // Matikan tombol jika error
             }
         }
 
+        // --- Logika Absensi ---
         function onScanSuccess(decodedText, decodedResult) {
             showConfirmationModal(decodedText);
         }
 
         async function sendScanData(studentId) {
             modalStatus.innerHTML = `<p class="text-blue-600">Mencatat kehadiran...</p>`;
-            confirmBtn.disabled = true;
-            cancelBtn.disabled = true;
             try {
                 const response = await fetch('/api/scan', {
                     method: 'POST',
@@ -194,22 +184,18 @@
                 const result = await response.json();
                 if (response.ok) {
                     modalStatus.innerHTML = `<p class="text-green-600 animate-pulse">${result.message}</p>`;
-                    fetchAttendanceData();
+                    fetchAttendanceData(); // Refresh tabel absensi di latar belakang
                     setTimeout(closeConfirmationModal, 1500);
                 } else {
                     throw new Error(result.message);
                 }
             } catch (error) {
-                modalStatus.innerHTML = `<p class="text-red-500">${error.message}</p>`;
-                 setTimeout(closeConfirmationModal, 3000);
-            } finally {
-                if(!confirmationModal.classList.contains('hidden')){
-                    confirmBtn.disabled = false;
-                    cancelBtn.disabled = false;
-                }
+                modalStatus.innerHTML = `<p class="text-red-600">${error.message}</p>`;
+                 setTimeout(closeConfirmationModal, 3000); // Tutup modal setelah menampilkan error
             }
         }
 
+        // --- FUNGSI YANG DITAMBAHKAN KEMBALI ---
         async function fetchAttendanceData() {
              try {
                 const response = await fetch('/api/attendance/today');
@@ -225,80 +211,86 @@
                             <td class="px-6 py-4 whitespace-nowrap">${item.time}</td>
                             <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">${item.status}</span></td>
                         </tr>`;
-                        tableBody.insertAdjacentHTML('afterbegin', row);
+                        tableBody.innerHTML += row;
                     });
                 }
-            } catch (error) { console.error('Gagal mengambil data absensi:', error); }
+            } catch (error) {
+                console.error('Gagal mengambil data absensi:', error);
+            }
         }
 
         async function fetchActiveSession() {
-            // Fungsi ini tidak berubah
             const sessionInfoEl = document.getElementById('active-session-info');
             try {
                 const response = await fetch('/api/sessions');
                 if (!response.ok) throw new Error('Gagal mengambil data sesi.');
                 const sessions = await response.json();
                 const activeSession = Array.isArray(sessions) ? sessions.find(s => s.is_active) : null;
+
                 if (activeSession) {
-                    sessionInfoEl.innerHTML = `<p class="font-bold">${activeSession.session_name}</p><p>Batas telat hari ini adalah pukul ${activeSession.late_time}.</p>`;
+                    sessionInfoEl.innerHTML = `
+                        <p class="font-bold">${activeSession.session_name}</p>
+                        <p>Batas telat hari ini adalah pukul ${activeSession.late_time}.</p>`;
                 } else {
-                    sessionInfoEl.innerHTML = `<p class="font-bold text-red-700">Tidak Ada Sesi Aktif</p><p class="text-red-700">Silakan aktifkan sesi di halaman 'Kelola Sesi' untuk memulai absensi.</p>`;
+                    sessionInfoEl.innerHTML = `
+                        <p class="font-bold text-red-700">Tidak Ada Sesi Aktif</p>
+                        <p class="text-red-700">Silakan aktifkan sesi di halaman 'Kelola Sesi' untuk memulai absensi.</p>`;
                 }
-            } catch (error) { sessionInfoEl.innerHTML = `<p class="font-bold text-red-700">Gagal memuat info sesi.</p>`; }
-        }
-        
-        function startScanner(cameraId) {
-            // PERBAIKAN: Konfigurasi scanner yang responsif
-            const config = {
-                fps: 10,
-                qrbox: (viewfinderWidth, viewfinderHeight) => {
-                    const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-                    // Ukuran kotak scan adalah 70% dari sisi terpendek
-                    const qrboxSize = Math.floor(minEdge * 0.7);
-                    return {
-                        width: qrboxSize,
-                        height: qrboxSize
-                    };
-                }
-            };
-
-            html5QrCode.start( cameraId, config, onScanSuccess, (errorMessage) => {})
-            .catch(err => { console.error("Gagal memulai scanner:", err); });
+            } catch (error) {
+                sessionInfoEl.innerHTML = `<p class="font-bold text-red-700">Gagal memuat info sesi.</p>`;
+                console.error('Error fetching active session:', error);
+            }
         }
 
-        function setupCamera() {
-            html5QrCode = new Html5Qrcode("qr-reader");
+        // --- Logika Inisialisasi Scanner ---
+        function startScanner(deviceId) {
+            // Penggunaan Html5QrcodeScanner sudah tidak disarankan, ganti ke Html5Qrcode
+            // const config = { fps: 10, qrbox: { width: 250, height: 250 }, supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA] };
+            // if (deviceId) { config.deviceId = { exact: deviceId }; }
+            // html5QrcodeScanner.start( deviceId ? { exact: deviceId } : { facingMode: "environment" }, config, onScanSuccess, (error) => {});
+        }
+
+        function setupCameraSelector() {
+            html5QrcodeScanner = new Html5Qrcode("qr-reader"); // Inisialisasi di sini
             const cameraSelect = document.getElementById('camera-select');
+            const selectorContainer = document.getElementById('camera-selector-container');
             
             Html5Qrcode.getCameras().then(devices => {
                 if (devices && devices.length) {
-                    // Isi pilihan kamera
-                    devices.forEach(device => {
-                        const option = new Option(device.label || `Kamera ${cameraSelect.length + 1}`, device.id);
-                        cameraSelect.add(option);
-                    });
+                    let preferredCameraId = devices[0].id;
+                    if (devices.length > 1) {
+                        selectorContainer.classList.remove('hidden');
+                        devices.forEach(device => {
+                            const option = new Option(device.label || `Kamera ${cameraSelect.length + 1}`, device.id);
+                            cameraSelect.add(option);
+                            if (device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('environment')) {
+                                preferredCameraId = device.id;
+                            }
+                        });
+                        cameraSelect.value = preferredCameraId;
+                    }
                     
-                    // Mulai scanner dengan kamera pertama
-                    startScanner(devices[0].id);
+                    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+                    html5QrcodeScanner.start(preferredCameraId, config, onScanSuccess, (errorMessage) => { /* abaikan error */ });
 
-                    // Ganti kamera saat pilihan berubah
                     cameraSelect.addEventListener('change', () => {
-                        html5QrCode.stop().then(() => {
-                            startScanner(cameraSelect.value);
+                        html5QrcodeScanner.stop().then(() => {
+                            html5QrcodeScanner.start(cameraSelect.value, config, onScanSuccess, (errorMessage) => { /* abaikan error */ });
                         }).catch(err => console.log("Gagal menghentikan scanner:", err));
                     });
                 }
             }).catch(err => {
                 console.error("Gagal mendapatkan daftar kamera:", err);
-                document.getElementById('qr-reader').innerHTML = `<p class="text-red-500 p-4">Gagal mengakses kamera. Izin diperlukan.</p>`
+                document.getElementById('qr-reader').innerHTML = `<p class="text-red-500 p-4">Gagal mengakses kamera. Pastikan Anda telah memberikan izin di browser.</p>`
             });
         }
         
         document.addEventListener('DOMContentLoaded', () => {
-            setupCamera();
+            setupCameraSelector();
             fetchActiveSession();
-            fetchAttendanceData();
+            fetchAttendanceData(); // Panggil juga fungsi ini saat halaman dimuat
         });
     </script>
 </body>
 </html>
+
